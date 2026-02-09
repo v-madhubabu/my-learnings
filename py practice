@@ -1,0 +1,66 @@
+import subprocess
+import sys
+
+def run(cmd, cwd=None):
+    """
+    Run a command safely and stop if it fails.
+    Shows output, and raises error on non-zero exit.
+    """
+    print(f"\n$ {' '.join(cmd)}")
+    result = subprocess.run(cmd, cwd=cwd, text=True, capture_output=True)
+
+    if result.stdout:
+        print(result.stdout.strip())
+    if result.stderr:
+        print(result.stderr.strip())
+
+    if result.returncode != 0:
+        raise RuntimeError(f"Command failed (code={result.returncode}): {' '.join(cmd)}")
+
+    return result
+
+def main():
+    # OPTIONAL: set your repo path here if you want
+    # repo_path = r"C:\path\to\your\repo"
+    repo_path = None  # None = run in current folder
+
+    commit_msg = "Automated commit"
+    if len(sys.argv) > 1:
+        commit_msg = " ".join(sys.argv[1:])
+
+    # Ensure we are inside a git repo
+    run(["git", "rev-parse", "--is-inside-work-tree"], cwd=repo_path)
+
+    # Show status
+    run(["git", "status"], cwd=repo_path)
+
+    # Add everything
+    run(["git", "add", "."], cwd=repo_path)
+
+    # Commit (if nothing to commit, don't fail)
+    try:
+        run(["git", "commit", "-m", commit_msg], cwd=repo_path)
+    except RuntimeError as e:
+        msg = str(e)
+        # Common case: nothing changed
+        if "nothing to commit" in msg.lower():
+            print("Nothing to commit. Skipping commit.")
+        else:
+            # Sometimes git writes this to stdout/stderr; so also check printed output above.
+            # If it's a real error, stop.
+            raise
+
+    # Pull latest changes safely (rebase avoids merge commits)
+    run(["git", "pull", "--rebase"], cwd=repo_path)
+
+    # Push
+    run(["git", "push"], cwd=repo_path)
+
+    print("\n✅ Done: add/commit/pull/push completed successfully.")
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as ex:
+        print(f"\n❌ FAILED: {ex}")
+        sys.exit(1)
